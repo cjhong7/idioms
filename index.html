@@ -2962,15 +2962,28 @@ function resetWords(){
 // ═════════════════════════════════════════════
 function bgmEnabled(){ return localStorage.getItem('scj_bgm')!=='0'; }
 let bgmSource=null, bgmBuffer=null, bgmGainNode=null;
-const BGM_BEAT=60/116; // BPM 116 → 한 박자(초)
-// 반짝반짝 작은 별 (C4 베이스)
+const BGM_BEAT=60/128; // BPM 128 → 한 박자(초)
+// 도전 사자성어 테마 — 동양풍 5음계 (C 장조 펜타토닉)
 const BGM_NOTES=[
-  [262,.5],[262,.5],[392,.5],[392,.5],[440,.5],[440,.5],[392,1],
-  [349,.5],[349,.5],[330,.5],[330,.5],[294,.5],[294,.5],[262,1],
-  [392,.5],[392,.5],[349,.5],[349,.5],[330,.5],[330,.5],[294,1],
-  [392,.5],[392,.5],[349,.5],[349,.5],[330,.5],[330,.5],[294,1],
-  [262,.5],[262,.5],[392,.5],[392,.5],[440,.5],[440,.5],[392,1],
-  [349,.5],[349,.5],[330,.5],[330,.5],[294,.5],[294,.5],[262,2],
+  // ─ 1절: 출발 ─
+  [392,.5],[440,.5],[524,.5],[440,.5],[392,1],[330,.5],[392,.5],
+  [440,.5],[524,.5],[587,.5],[524,.5],[440,1.5],[0,.5],
+  // ─ 2절: 상승 ─
+  [524,.5],[587,.5],[659,.5],[587,.5],[524,.5],[440,.5],[392,.5],[330,.5],
+  [294,.5],[330,.5],[392,.5],[440,.5],[524,2],
+  // ─ 3절: 클라이맥스 ─
+  [659,.5],[659,.5],[587,.5],[524,.5],[440,.5],[524,.5],[587,.5],[0,.5],
+  [524,.5],[440,.5],[392,.5],[330,.5],[392,1],[294,1],
+  // ─ 4절: 마무리 ─
+  [330,.5],[392,.5],[440,.5],[524,.5],[440,.5],[392,.5],[330,.5],[294,.5],
+  [330,.5],[294,.5],[262,.5],[294,.5],[392,2],
+];
+// 베이스 라인 (사인파, 멜로디와 동길이 32박)
+const BGM_BASS=[
+  [196,2],[220,2],[196,2],[131,2],
+  [196,2],[131,2],[196,2],[220,2],
+  [196,2],[220,2],[196,2],[131,2],
+  [220,2],[196,2],[131,2],[196,2],
 ];
 
 async function _buildBGMBuffer(){
@@ -2980,15 +2993,31 @@ async function _buildBGMBuffer(){
   const sr=ctx.sampleRate;
   const oac=new OfflineAudioContext(1,Math.ceil((totalSec+0.05)*sr),sr);
   let t=0;
+  // 멜로디 레이어 (스퀘어파 — 경쾌한 치프튠)
   for(const [freq,beats] of BGM_NOTES){
     const dur=beats*BGM_BEAT;
     if(freq>0){
       const osc=oac.createOscillator(), g=oac.createGain();
       osc.connect(g); g.connect(oac.destination);
-      osc.type='triangle'; osc.frequency.value=freq;
-      g.gain.setValueAtTime(0.13,t);
-      g.gain.setValueAtTime(0.13,t+dur*0.78);
-      g.gain.exponentialRampToValueAtTime(0.001,t+dur*0.97);
+      osc.type='square'; osc.frequency.value=freq;
+      g.gain.setValueAtTime(0.08,t);
+      g.gain.setValueAtTime(0.08,t+dur*0.65);
+      g.gain.exponentialRampToValueAtTime(0.001,t+dur*0.92);
+      osc.start(t); osc.stop(t+dur);
+    }
+    t+=dur;
+  }
+  // 베이스 레이어 (사인파 — 부드러운 저음)
+  t=0;
+  for(const [freq,beats] of BGM_BASS){
+    const dur=beats*BGM_BEAT;
+    if(freq>0){
+      const osc=oac.createOscillator(), g=oac.createGain();
+      osc.connect(g); g.connect(oac.destination);
+      osc.type='sine'; osc.frequency.value=freq;
+      g.gain.setValueAtTime(0.07,t);
+      g.gain.setValueAtTime(0.07,t+dur*0.88);
+      g.gain.exponentialRampToValueAtTime(0.001,t+dur*0.98);
       osc.start(t); osc.stop(t+dur);
     }
     t+=dur;
@@ -3003,7 +3032,7 @@ async function startBGM(){
     if(!bgmBuffer) bgmBuffer=await _buildBGMBuffer();
     const ctx=getAC();
     await ctx.resume();
-    bgmGainNode=ctx.createGain(); bgmGainNode.gain.value=0.28;
+    bgmGainNode=ctx.createGain(); bgmGainNode.gain.value=0.22;
     bgmSource=ctx.createBufferSource();
     bgmSource.buffer=bgmBuffer; bgmSource.loop=true;
     bgmSource.connect(bgmGainNode); bgmGainNode.connect(ctx.destination);
