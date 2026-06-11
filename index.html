@@ -1400,6 +1400,7 @@ let recognition=null, audioCtx=null;
 const _spawnReg=new WeakMap(); // 버블 X위치 등록 (겹침 방지 — 동일 프레임 spawn 대응)
 let curScreen='mode';
 let dwellEl=null, dwellTimer=null;
+let gestureMuteUntil=0;   // 이 시각(performance.now 기준)까지 손 제스처 일시정지
 const DWELL_MS=700;
 let wrongWordsSession=[], wrongClickCount=0, gameStartTime=0;
 
@@ -1524,6 +1525,12 @@ function onHandResults(res){
     }
   }
   if(tips.length) lastHandVisible=performance.now(); // 손 감지 시각 갱신
+  // 제스처 쿨다운: '확인' 직후 일정 시간 동안 손 인식 일시정지 (손이 남아있어 다음 버튼이 바로 눌리는 것 방지)
+  if(performance.now()<gestureMuteUntil){
+    clearDwell();
+    hideCursors();
+    return;
+  }
   const rm=document.getElementById('review-modal');
   if(rm&&rm.style.display!=='none'&&rm.style.display!==''){
     // 오답 복습 모달이 떠 있으면 모달의 '확인' 버튼만 제스처 대상
@@ -2344,6 +2351,9 @@ function showReviewModal(){
 }
 function closeReviewModal(){
   document.getElementById('review-modal').style.display='none';
+  gestureMuteUntil=performance.now()+2000; // 확인 후 2초간 손 제스처 잠금
+  clearDwell();
+  hideCursors();
   show('end');
 }
 
