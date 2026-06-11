@@ -1399,9 +1399,11 @@ let comboCount=0;
 let recognition=null, audioCtx=null;
 const _spawnReg=new WeakMap(); // 버블 X위치 등록 (겹침 방지 — 동일 프레임 spawn 대응)
 let curScreen='mode';
-let dwellEl=null, dwellTimer=null;
+let dwellEl=null, dwellTimer=null, dwellLastHitTime=0;
 let gestureMuteUntil=0;   // 이 시각(performance.now 기준)까지 손 제스처 일시정지
 const DWELL_MS=700;
+const REVIEW_DWELL_MS=300;  // 오답 복습창 '확인'은 0.3초로 빠르게 반응
+const MENU_GRACE_MS=250;    // 메뉴/모달 손제스처 손 떨림(지터) 허용 시간
 let wrongWordsSession=[], wrongClickCount=0, gameStartTime=0;
 
 const PTS={1:4,2:6,3:8};            // 정답 점수 (저/중/고)
@@ -1563,11 +1565,17 @@ function checkMenuGesture(tips,container){
     const r=btn.getBoundingClientRect();
     if(tip.x>=r.left&&tip.x<=r.right&&tip.y>=r.top&&tip.y<=r.bottom){hit=btn;break;}
   }
-  if(!hit){clearDwell();return;}
+  if(!hit){
+    // 손 떨림으로 잠깐 버튼을 벗어나도 grace 시간 내엔 dwell 유지 (작은 버튼에서도 잘 눌리도록)
+    if(dwellEl && performance.now()-dwellLastHitTime < MENU_GRACE_MS) return;
+    clearDwell();return;
+  }
+  dwellLastHitTime=performance.now();
   if(hit===dwellEl) return; // 이미 dwell 중
   clearDwell();
   dwellEl=hit;
   hit.classList.add('gesture-hover');
+  const dwellMs=container?REVIEW_DWELL_MS:DWELL_MS; // 모달(오답창 확인)은 0.3초
   dwellTimer=setTimeout(()=>{
     if(dwellEl){
       dwellEl.classList.remove('gesture-hover');
@@ -1577,7 +1585,7 @@ function checkMenuGesture(tips,container){
       el.click();
       setTimeout(()=>el.classList.remove('gesture-clicked'),200);
     }
-  },DWELL_MS);
+  },dwellMs);
 }
 function checkHandCollision(tips){
   const now=performance.now();
