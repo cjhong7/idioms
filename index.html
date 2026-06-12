@@ -80,6 +80,10 @@ body{width:100vw;height:100vh;overflow:hidden;background:#070D1F;font-family:'Na
 .name-prompt{color:#fff;font-size:clamp(1.3rem,3.5vw,2.2rem);font-weight:800;text-align:center;}
 .mic-wrap{font-size:5rem;animation:micpulse 1s ease-in-out infinite;}
 @keyframes micpulse{0%,100%{transform:scale(1);}50%{transform:scale(1.2);}}
+/* 음성 입력 중(말하는 중) 마이크 버튼: 빨간 깜빡임 */
+@keyframes micBlink{0%,100%{background:rgba(220,30,30,.9);box-shadow:0 0 0 0 rgba(220,30,30,.6);}
+  50%{background:rgba(255,70,70,1);box-shadow:0 0 0 7px rgba(220,30,30,0);}}
+.mic-recording{animation:micBlink .8s ease-in-out infinite!important;border-color:rgba(255,90,90,.95)!important;}
 #rec-name{color:#A8C4FF;font-size:clamp(1.8rem,5vw,3.5rem);font-weight:800;min-height:55px;text-align:center;}
 
 /* ──── STAGE SELECT ──── */
@@ -383,7 +387,11 @@ details.guide pre{background:#0a0a14;border:1px solid rgba(255,255,255,.15);bord
     <div id="panel-student" class="login-panel">
       <div style="color:rgba(255,255,255,.55);font-size:.82rem;margin-bottom:4px;">📌 학교 이름을 입력하고 참여 범위를 선택하세요</div>
       <div><span class="lbl">학교 이름</span></div>
-      <input class="inp" id="student-school" type="text" placeholder="예: OO초등학교" autocomplete="off">
+      <div style="display:flex;gap:8px;align-items:stretch;">
+        <input class="inp" id="student-school" type="text" placeholder="예: OO초등학교" autocomplete="off" style="flex:1;">
+        <button id="school-mic-btn" class="gesture-btn fast-dwell" onclick="startSchoolVoice()" title="음성으로 학교 이름 입력"
+          style="flex:none;width:58px;border:2px solid rgba(168,196,255,.5);border-radius:12px;background:rgba(74,128,232,.28);color:#fff;font-size:1.5rem;cursor:pointer;transition:all .15s;">🎤</button>
+      </div>
       <button class="btn btn-primary gesture-btn" style="margin-top:4px;" onclick="submitStudentLogin()">참여하기 →</button>
       <div style="color:rgba(255,220,80,.75);font-size:.8rem;margin-top:6px;text-align:center;">
         💡 QR 코드 스캔 시 학교이름·범위가 자동 설정됩니다
@@ -1403,6 +1411,7 @@ let timerInt=null, spawnInt=null;
 let wordQueue=[], wordsDone=0, currentTarget=null, currentOptions=[], gameLocked=false;
 let comboCount=0;
 let recognition=null, audioCtx=null;
+let schoolRecognition=null;   // 학교 이름 음성 입력 전용 (이름 입력용 recognition과 분리)
 const _spawnReg=new WeakMap(); // 버블 X위치 등록 (겹침 방지 — 동일 프레임 spawn 대응)
 let curScreen='mode';
 let dwellEl=null, dwellTimer=null, dwellLastHitTime=0;
@@ -1582,7 +1591,7 @@ function checkMenuGesture(tips,container){
   clearDwell();
   dwellEl=hit;
   hit.classList.add('gesture-hover');
-  const dwellMs=container?REVIEW_DWELL_MS:DWELL_MS; // 모달(오답창 확인)은 0.3초
+  const dwellMs=(container||hit.classList.contains('fast-dwell'))?REVIEW_DWELL_MS:DWELL_MS; // 모달 확인·🎤 버튼은 0.2초
   dwellTimer=setTimeout(()=>{
     if(dwellEl){
       dwellEl.classList.remove('gesture-hover');
@@ -2154,6 +2163,44 @@ function downloadAsExcel(){
 // VOICE RECOGNITION
 // ═════════════════════════════════════════════
 function goNameScreen(){show('name');startVoice();}
+// 음성 인식 결과에서 양끝 유니코드 구두점·기호·공백 제거 (예: "처인초등학교." → "처인초등학교")
+function cleanSpeech(t){
+  return (t||'').trim().replace(/^[\p{P}\p{S}\s]+|[\p{P}\p{S}\s]+$/gu,'').trim();
+}
+// 마이크 버튼 상태 표시 (🔴 말하는 중 / 🎤 대기)
+function _setSchoolMic(active){
+  const btn=document.getElementById('school-mic-btn');
+  if(!btn) return;
+  btn.textContent=active?'🔴':'🎤';
+  btn.classList.toggle('mic-recording',active);
+}
+// 학교 이름 음성 입력 (학생 참여 화면)
+function startSchoolVoice(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert('이 브라우저는 음성 입력을 지원하지 않습니다. 직접 입력해 주세요. (Chrome 권장)'); return; }
+  // 이전 인식 세션을 확실히 종료 → 재시도 시 이전 결과가 남지 않도록
+  if(schoolRecognition){ try{schoolRecognition.abort();}catch(e){} schoolRecognition=null; }
+  const inp=document.getElementById('student-school');
+  const r=new SR();
+  schoolRecognition=r;
+  r.lang='ko-KR'; r.continuous=false; r.interimResults=true; r.maxAlternatives=1;
+  _setSchoolMic(true);
+  r.onresult=(e)=>{
+    let t='';
+    for(let i=0;i<e.results.length;i++) t+=e.results[i][0].transcript;
+    const isFinal=e.results[e.results.length-1].isFinal;
+    inp.value=cleanSpeech(t);   // 항상 통째로 교체 (재시도 시 이전 값 확실히 대체)
+    if(isFinal) _setSchoolMic(false);
+  };
+  r.onerror=(e)=>{
+    _setSchoolMic(false);
+    // no-speech·aborted 등 가벼운 오류는 조용히 무시, 마이크 권한 문제만 안내
+    if(e&&(e.error==='not-allowed'||e.error==='service-not-allowed'))
+      alert('마이크 권한이 필요합니다. 브라우저 주소창의 마이크 권한을 허용해 주세요.');
+  };
+  r.onend=()=>{ _setSchoolMic(false); schoolRecognition=null; };
+  try{ r.start(); }catch(e){ _setSchoolMic(false); }
+}
 function startVoice(){
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   document.getElementById('mic-icon').style.animation='micpulse 1s ease-in-out infinite';
@@ -2168,8 +2215,8 @@ function startVoice(){
     let t='';
     for(let i=e.resultIndex;i<e.results.length;i++) t+=e.results[i][0].transcript;
     const isFinal=e.results[e.results.length-1].isFinal;
-    // Chrome이 한국어 인식 끝에 마침표를 붙이므로 끝 문장부호 제거
-    const clean=t.trim().replace(/[.。，,!?！？\s]+$/,'');
+    // Chrome이 한국어 인식 끝에 마침표를 붙이므로 끝 문장부호 제거 (유니코드 구두점 전체)
+    const clean=cleanSpeech(t);
     document.getElementById('rec-name').textContent = isFinal ? clean : t; // 표시도 정리된 이름으로
     if(isFinal){
       playerName=clean;
