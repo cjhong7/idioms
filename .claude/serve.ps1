@@ -1,6 +1,6 @@
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot   # project root (parent of .claude)
-$prefix = 'http://localhost:8765/'
+$prefix = 'http://localhost:8766/'
 $listener = New-Object System.Net.HttpListener
 $listener.Prefixes.Add($prefix)
 $listener.Start()

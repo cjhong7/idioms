@@ -5,7 +5,7 @@
       "name": "idiom-game",
       "runtimeExecutable": "powershell",
       "runtimeArgs": ["-ExecutionPolicy", "Bypass", "-NoProfile", "-File", ".claude/serve.ps1"],
-      "port": 8765
+      "port": 8766
     }
   ]
 }
