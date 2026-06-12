@@ -2188,13 +2188,24 @@ function startSchoolVoice(){
   inp.placeholder='말씀하세요...';   // 음성 인식 중 안내 (placeholder 스타일로 흐리게 표시)
   const r=new SR();
   schoolRecognition=r;
-  r.lang='ko-KR'; r.continuous=false; r.interimResults=true; r.maxAlternatives=1;
+  r.lang='ko-KR'; r.continuous=false; r.interimResults=true; r.maxAlternatives=5;
   _setSchoolMic(true);
   r.onresult=(e)=>{
-    let t='';
-    for(let i=0;i<e.results.length;i++) t+=e.results[i][0].transcript;
-    const isFinal=e.results[e.results.length-1].isFinal;
-    inp.value=cleanSpeech(t);   // 항상 통째로 교체 (재시도 시 이전 값 확실히 대체)
+    const last=e.results[e.results.length-1];
+    const isFinal=last.isFinal;
+    let text;
+    if(isFinal){
+      // 여러 인식 후보 중 '학교'로 끝나는 것을 우선 선택 (학교 이름 인식률 보정)
+      const alts=[];
+      for(let i=0;i<last.length;i++) alts.push(cleanSpeech(last[i].transcript));
+      text = alts.find(a=>/(초등학교|중학교|고등학교|학교)$/.test(a.replace(/\s+/g,''))) || alts[0] || '';
+      text = text.replace(/\s+/g,'');   // 학교 이름은 보통 붙여 씀 → 공백 제거 ("처인 초등학교"→"처인초등학교")
+    }else{
+      let t='';
+      for(let i=0;i<e.results.length;i++) t+=e.results[i][0].transcript;
+      text = cleanSpeech(t);
+    }
+    inp.value=text;   // 항상 통째로 교체 (재시도 시 이전 값 확실히 대체)
     if(isFinal) _setSchoolMic(false);
   };
   r.onerror=(e)=>{
