@@ -2184,6 +2184,8 @@ function startSchoolVoice(){
   // 이전 인식 세션을 확실히 종료 → 재시도 시 이전 결과가 남지 않도록
   if(schoolRecognition){ try{schoolRecognition.abort();}catch(e){} schoolRecognition=null; }
   const inp=document.getElementById('student-school');
+  inp.value='';                      // 새 음성 입력 시작 → 이전 값 비움
+  inp.placeholder='말씀하세요...';   // 음성 인식 중 안내 (placeholder 스타일로 흐리게 표시)
   const r=new SR();
   schoolRecognition=r;
   r.lang='ko-KR'; r.continuous=false; r.interimResults=true; r.maxAlternatives=1;
@@ -2201,7 +2203,7 @@ function startSchoolVoice(){
     if(e&&(e.error==='not-allowed'||e.error==='service-not-allowed'))
       alert('마이크 권한이 필요합니다. 브라우저 주소창의 마이크 권한을 허용해 주세요.');
   };
-  r.onend=()=>{ _setSchoolMic(false); schoolRecognition=null; };
+  r.onend=()=>{ _setSchoolMic(false); schoolRecognition=null; inp.placeholder='예: OO초등학교'; };
   try{ r.start(); }catch(e){ _setSchoolMic(false); }
 }
 function startVoice(){
